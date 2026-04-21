@@ -1,0 +1,508 @@
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import { Download, Share2, RefreshCw, CheckCircle2, ArrowLeft, Compass, Trophy, Zap, Target, Star, Check, X, Bookmark } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import CareerTree from './CareerTree';
+
+interface RoadmapDisplayProps {
+  content: string;
+  onReset: () => void;
+  onSave?: (content: string) => Promise<boolean>;
+}
+
+export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisplayProps) {
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const dashboardRef = useRef<HTMLDivElement>(null);
+
+  // Helper to extract progress bars from content if they exist
+  const extractProgress = (text: string) => {
+    const lines = text.split('\n');
+    const progress: { name: string; value: number }[] = [];
+    let inProgressSection = false;
+
+    for (const line of lines) {
+      if (line.includes('# 📊 PROGRESS SYSTEM') || line.includes('# 🌿 BRANCHES') || line.includes('# BRANCHES')) {
+        inProgressSection = true;
+        continue;
+      }
+      if (inProgressSection && (line.startsWith('#') || line.startsWith('🍃'))) break;
+      
+      if (inProgressSection && line.includes(':')) {
+        const percentMatch = line.match(/-\s*(.*?):\s*(\d+)%/);
+        if (percentMatch) {
+          progress.push({ name: percentMatch[1], value: parseInt(percentMatch[2]) });
+        } else {
+          const levelMatch = line.match(/-\s*(.*?)\s*\(Level:\s*(.*?)\)/);
+          if (levelMatch) {
+            const level = levelMatch[2].toLowerCase();
+            const value = level.includes('advanced') ? 90 : level.includes('intermediate') ? 60 : 30;
+            progress.push({ name: levelMatch[1], value });
+          }
+        }
+      }
+    }
+    return progress;
+  };
+
+  const extractGamification = (text: string) => {
+    const data = {
+      level: '1',
+      xp: '0',
+      nextMilestone: 'Complete first project',
+      badges: [] as string[],
+      status: '🌱 Seed'
+    };
+
+    const lines = text.split('\n');
+    let inSection = false;
+
+    for (const line of lines) {
+      if (line.includes('# 🎮 GAMIFICATION STATUS') || line.includes('# GAMIFICATION STATUS')) {
+        inSection = true;
+        continue;
+      }
+      if (inSection && line.startsWith('#')) break;
+
+      if (inSection) {
+        if (line.includes('Current Level:')) data.level = line.split(':')[1].trim().replace('[', '').replace(']', '');
+        if (line.includes('XP Points:')) data.xp = line.split(':')[1].trim().replace('[', '').replace(']', '');
+        if (line.includes('Next Milestone:')) data.nextMilestone = line.split(':')[1].trim();
+        if (line.includes('Badge Suggestions:')) {
+          const badgesText = line.split(':')[1].trim().replace('[', '').replace(']', '');
+          data.badges = badgesText.split(',').map(b => b.trim());
+        }
+        if (line.includes('Progress Status:')) data.status = line.split(':')[1].trim().replace('[', '').replace(']', '');
+      }
+    }
+    return data;
+  };
+
+  const progressData = extractProgress(content);
+  const gamification = extractGamification(content);
+
+  // Sanitize content to remove double asterisks that look like AI artifacts
+  const sanitizeContent = (text: string) => {
+    return text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1');
+  };
+
+  const sanitizedContent = sanitizeContent(content);
+
+  // Mock nodes for the tree based on content
+  const treeNodes = [
+    { id: 'root', label: 'You', type: 'root', x: 400, y: 400 },
+    { id: 's1', label: progressData[0]?.name || 'Skill 1', type: 'skill', x: 250, y: 300 },
+    { id: 's2', label: progressData[1]?.name || 'Skill 2', type: 'skill', x: 550, y: 300 },
+    { id: 'p1', label: 'Project 1', type: 'project', x: 150, y: 150 },
+    { id: 'p2', label: 'Project 2', type: 'project', x: 350, y: 150 },
+    { id: 'p3', label: 'Project 3', type: 'project', x: 650, y: 150 },
+    { id: 'o1', label: 'Outcome 1', type: 'outcome', x: 250, y: 50 },
+    { id: 'o2', label: 'Outcome 2', type: 'outcome', x: 550, y: 50 },
+  ] as const;
+
+  const treeEdges = [
+    { from: 'root', to: 's1' },
+    { from: 'root', to: 's2' },
+    { from: 's1', to: 'p1' },
+    { from: 's1', to: 'p2' },
+    { from: 's2', to: 'p2' },
+    { from: 's2', to: 'p3' },
+    { from: 'p1', to: 'o1' },
+    { from: 'p2', to: 'o1' },
+    { from: 'p2', to: 'o2' },
+    { from: 'p3', to: 'o2' },
+  ];
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'My Career Strategy - CareerCompass AI',
+      text: 'Check out my personalized career roadmap generated by CareerCompass AI!',
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        alert('Link copied to clipboard!');
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!dashboardRef.current) return;
+    
+    setIsDownloading(true);
+    try {
+      const element = dashboardRef.current;
+      
+      // Use html2canvas to capture the element
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#030303',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        ignoreElements: (el) => {
+          return el.classList.contains('print:hidden') || el.tagName === 'BUTTON';
+        },
+        onclone: (clonedDoc: Document) => {
+          // Fix for html2canvas not supporting oklch colors in Tailwind v4
+          // We need to be extremely aggressive and strip oklch from ALL style tags and inline styles
+          
+          // 1. Process all style tags
+          Array.from(clonedDoc.querySelectorAll('style')).forEach(styleTag => {
+            try {
+              if (styleTag.innerHTML.includes('oklch')) {
+                // Specific replacement requested by user
+                styleTag.innerHTML = styleTag.innerHTML.replace(/oklch\(0\.7\s+0\.1\s+200\)/g, '#6366f1');
+                styleTag.innerHTML = styleTag.innerHTML.replace(/oklch\([^)]+\)/g, '#71717a');
+              }
+            } catch (e) {
+              console.warn('Failed to sanitize style tag', e);
+            }
+          });
+
+          // 2. Process all elements with inline styles
+          Array.from(clonedDoc.querySelectorAll('[style]')).forEach(el => {
+            const styleAttr = el.getAttribute('style');
+            if (styleAttr && styleAttr.includes('oklch')) {
+              let newStyle = styleAttr.replace(/oklch\(0\.7\s+0\.1\s+200\)/g, '#6366f1');
+              newStyle = newStyle.replace(/oklch\([^)]+\)/g, '#71717a');
+              el.setAttribute('style', newStyle);
+            }
+          });
+
+          // 3. Inject a massive hex-based override stylesheet
+          const style = clonedDoc.createElement('style');
+          style.innerHTML = `
+            :root {
+              --color-zinc-50: #fafafa !important;
+              --color-zinc-100: #f4f4f5 !important;
+              --color-zinc-200: #e4e4e7 !important;
+              --color-zinc-300: #d4d4d8 !important;
+              --color-zinc-400: #a1a1aa !important;
+              --color-zinc-500: #71717a !important;
+              --color-zinc-600: #52525b !important;
+              --color-zinc-700: #3f3f46 !important;
+              --color-zinc-800: #27272a !important;
+              --color-zinc-900: #18181b !important;
+              --color-zinc-950: #09090b !important;
+              
+              --color-purple-400: #c084fc !important;
+              --color-purple-500: #a855f7 !important;
+              --color-purple-600: #9333ea !important;
+              --color-blue-400: #60a5fa !important;
+              --color-blue-500: #3b82f6 !important;
+              --color-blue-600: #2563eb !important;
+              --color-blue-700: #1d4ed8 !important;
+              --color-emerald-500: #10b981 !important;
+            }
+
+            .text-zinc-400 { color: #a1a1aa !important; }
+            .text-zinc-500 { color: #71717a !important; }
+            .text-zinc-300 { color: #d4d4d8 !important; }
+            .text-zinc-200 { color: #e4e4e7 !important; }
+            .text-white { color: #ffffff !important; }
+            .bg-purple-500 { background-color: #a855f7 !important; }
+            .bg-blue-500 { background-color: #3b82f6 !important; }
+            .bg-zinc-900 { background-color: #18181b !important; }
+            .bg-black { background-color: #000000 !important; }
+            .border-white\\/10 { border-color: rgba(255, 255, 255, 0.1) !important; }
+            .border-white\\/5 { border-color: rgba(255, 255, 255, 0.05) !important; }
+            .bg-white\\/5 { background-color: rgba(255, 255, 255, 0.05) !important; }
+            .bg-white\\/10 { background-color: rgba(255, 255, 255, 0.1) !important; }
+            .from-purple-600 { --tw-gradient-from: #9333ea !important; }
+            .to-blue-700 { --tw-gradient-to: #1d4ed8 !important; }
+            
+            /* Specific replacement requested by user */
+            [style*="oklch(0.7 0.1 200)"] { color: #6366f1 !important; }
+            
+            svg text { fill: #ffffff !important; }
+            svg path { stroke: #52525b !important; }
+            .animate-spin { animation: none !important; }
+          `;
+          clonedDoc.head.appendChild(style);
+        }
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Career-Strategy-${new Date().getTime()}.pdf`);
+      
+      setShowSuccess(true);
+      setSuccessMessage('Roadmap PDF Downloaded Successfully!');
+      setTimeout(() => setShowSuccess(false), 4000);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!onSave || isSaving || saved) return;
+    
+    setIsSaving(true);
+    try {
+      const success = await onSave(content);
+      if (success) {
+        setSaved(true);
+        setSuccessMessage('Roadmap Saved to Your History!');
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 4000);
+      }
+    } catch (err) {
+      console.error('Error saving roadmap:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -100, x: '-50%' }}
+            animate={{ opacity: 1, y: 20, x: '-50%' }}
+            exit={{ opacity: 0, y: -100, x: '-50%' }}
+            className="fixed top-0 left-1/2 z-[100] flex items-center gap-3 px-6 py-4 bg-emerald-500 text-white rounded-2xl shadow-2xl shadow-emerald-500/20 font-bold"
+          >
+            <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+              <Check size={14} />
+            </div>
+            <span>{successMessage}</span>
+            <button onClick={() => setShowSuccess(false)} className="ml-2 hover:bg-white/20 p-1 rounded-full transition-colors">
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        ref={dashboardRef}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-7xl mx-auto pb-20 print:p-0 bg-[var(--bg-app)] p-8 rounded-[3rem]"
+      >
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-6 print:hidden">
+          <div>
+            <button
+              onClick={onReset}
+              className="flex items-center gap-2 text-zinc-500 hover:text-[var(--text-app)] transition-colors mb-4 group"
+            >
+              <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+              <span className="text-sm font-bold uppercase tracking-widest">New Strategy</span>
+            </button>
+            <h1 className="text-5xl font-extrabold tracking-tighter text-[var(--text-app)]">Career Strategy Dashboard</h1>
+            <p className="text-zinc-500 mt-3 text-lg">Premium Growth Intelligence • Generated on {new Date().toLocaleDateString()}</p>
+          </div>
+          <div className="flex gap-4">
+            {onSave && (
+              <button 
+                onClick={handleSave}
+                disabled={isSaving || saved}
+                className={`flex items-center gap-2 px-6 py-3 border rounded-2xl text-sm font-bold transition-all ${
+                  saved 
+                    ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-500 cursor-default' 
+                    : 'bg-[var(--card-bg)] border-[var(--card-border)] hover:bg-[var(--card-bg)]/80 text-[var(--text-app)]'
+                }`}
+              >
+                {isSaving ? <RefreshCw size={18} className="animate-spin" /> : saved ? <Check size={18} /> : <Bookmark size={18} />}
+                {isSaving ? 'Saving...' : saved ? 'Saved to History' : 'Save Roadmap'}
+              </button>
+            )}
+            <button 
+              onClick={handleShare}
+              className="flex items-center gap-2 px-6 py-3 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl text-sm font-bold hover:bg-[var(--card-bg)]/80 text-[var(--text-app)] transition-all"
+            >
+              <Share2 size={18} />
+              Share
+            </button>
+            <button 
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="flex items-center gap-2 px-6 py-3 bg-[var(--text-app)] text-[var(--bg-app)] rounded-2xl text-sm font-bold hover:opacity-90 transition-all shadow-xl shadow-purple-500/5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDownloading ? (
+                <RefreshCw size={18} className="animate-spin" />
+              ) : (
+                <Download size={18} />
+              )}
+              {isDownloading ? 'Generating...' : 'Download PDF'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 bg-[var(--bg-app)] p-4 rounded-[3rem]">
+          {/* Sidebar / Quick Stats */}
+          <div className="lg:col-span-4 space-y-8 print:hidden">
+          {/* Gamification Card */}
+          <div className="bg-gradient-to-br from-purple-600 to-blue-700 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl group-hover:scale-150 transition-transform duration-1000" />
+            
+            <div className="flex justify-between items-start mb-10">
+              <div>
+                <h3 className="text-xs font-mono uppercase tracking-widest text-white/60 mb-2">Current Level</h3>
+                <div className="text-6xl font-black leading-none">{gamification.level}</div>
+              </div>
+              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10">
+                <Trophy size={24} />
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/60 mb-2">
+                  <span>Experience Points</span>
+                  <span>{gamification.xp} XP</span>
+                </div>
+                <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden border border-white/5">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: '65%' }}
+                    className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]"
+                    transition={{ duration: 1.5, ease: "easeOut" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-white/60 mb-3">Unlocked Badges</div>
+                <div className="flex flex-wrap gap-2">
+                  {gamification.badges.map((badge, i) => (
+                    <div key={i} className="px-3 py-1.5 bg-white/10 rounded-xl text-[10px] font-bold border border-white/10 flex items-center gap-1.5">
+                      <Star size={10} fill="currentColor" />
+                      {badge}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Card */}
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-[2.5rem] p-8 shadow-xl">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500">Skill Strength</h3>
+              <Zap size={18} className="text-amber-400" />
+            </div>
+            <div className="space-y-6">
+              {progressData.map((skill) => (
+                <div key={skill.name}>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-[var(--text-app)] font-bold">{skill.name}</span>
+                    <span className="text-zinc-500 font-mono">{skill.value}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-[var(--bg-app)] rounded-full overflow-hidden border border-[var(--card-border)]">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${skill.value}%` }}
+                      className="h-full bg-gradient-to-r from-purple-500 to-blue-500"
+                      transition={{ duration: 1, delay: 0.5 }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tree Status */}
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-[2.5rem] p-8 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500">Growth Status</h3>
+              <Target size={18} className="text-blue-400" />
+            </div>
+            <div className="flex items-center gap-4 text-[var(--text-app)] font-black text-2xl mb-4">
+              <Compass size={28} className="text-purple-500" />
+              {gamification.status}
+            </div>
+            <div className="p-4 bg-[var(--bg-app)] rounded-2xl border border-[var(--card-border)]">
+              <p className="text-xs text-zinc-500 uppercase tracking-widest mb-1">Next Milestone</p>
+              <p className="text-sm text-[var(--text-app)] font-bold">{gamification.nextMilestone}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="lg:col-span-8 space-y-10">
+          {/* Career Tree Visualization */}
+          <div className="print:hidden">
+            <CareerTree nodes={[...treeNodes]} edges={[...treeEdges]} />
+          </div>
+
+          {/* Roadmap Content */}
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-[3rem] p-8 md:p-16 shadow-2xl roadmap-content relative overflow-hidden transition-colors">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-emerald-500" />
+            <ReactMarkdown
+              components={{
+                h1: ({ node, ...props }) => (
+                  <h1 className="text-3xl font-black mt-16 mb-8 first:mt-0 flex items-center gap-4 text-[var(--text-app)] border-b border-[var(--card-border)] pb-6" {...props} />
+                ),
+                h2: ({ node, ...props }) => (
+                  <h2 className="text-xl font-bold mt-12 mb-6 text-[var(--text-app)] flex items-center gap-3 opacity-90" {...props} />
+                ),
+                p: ({ node, ...props }) => {
+                  const text = props.children?.toString() || '';
+                  if (text.startsWith('🌱') || text.startsWith('🌳') || text.startsWith('🌿') || text.startsWith('🍃') || text.startsWith('🍎')) {
+                    return (
+                      <div className="p-6 bg-[var(--bg-app)] rounded-3xl mb-6 border border-[var(--card-border)]">
+                        <p className="text-[var(--text-app)] font-bold m-0 text-lg" {...props} />
+                      </div>
+                    );
+                  }
+                  return <p className="text-[var(--muted-text)] leading-relaxed mb-6 text-base md:text-lg" {...props} />;
+                },
+                ul: ({ node, ...props }) => <ul className="space-y-4 mb-8 list-none p-0" {...props} />,
+                li: ({ node, ...props }) => (
+                  <li className="flex items-start gap-4 text-[var(--muted-text)] text-base md:text-lg" {...props}>
+                    <div className="mt-1.5 min-w-[20px]">
+                      <CheckCircle2 size={20} className="text-purple-500" />
+                    </div>
+                    <span>{props.children}</span>
+                  </li>
+                ),
+                strong: ({ node, ...props }) => <strong className="font-black text-[var(--text-app)]" {...props} />,
+                blockquote: ({ node, ...props }) => (
+                  <blockquote className="border-l-4 border-purple-500 pl-8 py-6 my-10 bg-[var(--bg-app)] rounded-r-[2rem] text-[var(--text-app)] text-lg italic leading-relaxed" {...props} />
+                ),
+              }}
+            >
+              {sanitizedContent}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>
+
+      {/* Upgrade CTA */}
+      <div className="mt-20 p-12 bg-gradient-to-br from-zinc-900 to-black border border-white/10 rounded-[3.5rem] text-white flex flex-col lg:flex-row items-center justify-between gap-12 relative overflow-hidden print:hidden">
+        <div className="absolute inset-0 bg-purple-600/5 blur-[100px] rounded-full -ml-40" />
+        <div className="text-center lg:text-left relative z-10">
+          <h3 className="text-3xl font-black mb-4">Accelerate Your Evolution</h3>
+          <p className="text-zinc-400 text-lg max-w-xl">Unlock the Premium Growth Engine for weekly AI tracking, interview simulations, and direct access to industry mentors.</p>
+        </div>
+        <button className="whitespace-nowrap px-12 py-6 bg-white text-black rounded-full font-black text-lg hover:bg-zinc-200 transition-all shadow-2xl shadow-white/10 relative z-10">
+          Go Premium
+        </button>
+      </div>
+    </motion.div>
+  </div>
+  );
+}

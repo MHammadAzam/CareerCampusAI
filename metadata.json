@@ -1,0 +1,9 @@
+{
+  "name": "CareerCompass AI",
+  "description": "Professional SaaS platform for AI-powered career strategy, resume optimization, and interview preparation.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": []
+}

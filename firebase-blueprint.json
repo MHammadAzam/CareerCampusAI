@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User's unique ID"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's full name"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User's email address"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User's profile picture URL"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account creation timestamp"
+        },
+        "plan": {
+          "type": "string",
+          "enum": ["starter", "pro", "executive"],
+          "description": "User's subscription plan"
+        }
+      },
+      "required": ["uid", "displayName", "email", "createdAt"]
+    },
+    "Roadmap": {
+      "title": "Roadmap",
+      "description": "Generated career roadmap",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner of the roadmap"
+        },
+        "input": {
+          "type": "object",
+          "description": "User input used for generation"
+        },
+        "content": {
+          "type": "string",
+          "description": "The generated roadmap text"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Generation timestamp"
+        }
+      },
+      "required": ["userId", "input", "content", "date"]
+    },
+    "ChatFeedback": {
+      "title": "Chat Feedback",
+      "description": "Feedback on AI chat responses",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "messageId": { "type": "string" },
+        "messageText": { "type": "string" },
+        "feedback": { "type": "string", "enum": ["positive", "negative"] },
+        "role": { "type": "string" },
+        "speed": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "messageId", "feedback", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user profile"
+    },
+    "/users/{userId}/roadmaps/{roadmapId}": {
+      "schema": "Roadmap",
+      "description": "User's saved roadmaps"
+    },
+    "/chat_feedback/{feedbackId}": {
+      "schema": "ChatFeedback",
+      "description": "Global feedback on AI responses"
+    }
+  }
+}
