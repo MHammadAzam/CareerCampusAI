@@ -16,6 +16,8 @@ import {
   Clock
 } from 'lucide-react';
 import CareerChat from '../components/dashboard/CareerChat';
+import MotivationCard from '../components/dashboard/MotivationCard';
+import { MentorContext } from '../services/mentorService';
 
 export default function Dashboard() {
   const { user, profile, loading, signOut } = useAuth();
@@ -36,6 +38,14 @@ export default function Dashboard() {
     { icon: Video, label: 'Interview Simulator' },
     { icon: Settings, label: 'Configuration' },
   ];
+
+  const mentorContext: MentorContext = {
+    displayName: profile?.displayName || 'Strategic User',
+    goals: 'Transition to Staff Engineering Roles at Tier-1 Tech Companies',
+    skillLevel: 'intermediate',
+    stage: 'Narrative Engineering & Market Deployment',
+    struggles: 'Matching executive narrative expectations and cultural alignment'
+  };
 
   return (
     <div className="min-h-screen bg-[hsl(var(--background))] flex">
@@ -100,7 +110,9 @@ export default function Dashboard() {
             <div className="grid lg:grid-cols-3 gap-8">
                {/* Activity Card */}
                <div className="lg:col-span-2 space-y-8">
-                  <div className="p-8 bg-zinc-950 text-white rounded-[2.5rem] relative overflow-hidden group">
+                  <MotivationCard context={mentorContext} />
+                  
+                  <div className="p-8 bg-zinc-950 text-white rounded-[2.5rem] relative overflow-hidden group border border-white/5">
                      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
                      <div className="relative z-10">
                         <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest mb-6">
