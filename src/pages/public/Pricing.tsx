@@ -94,7 +94,12 @@ export default function Pricing() {
             <h2 className="text-3xl font-black mb-4">Enterprise Custom Solutions</h2>
             <p className="text-[hsl(var(--muted-foreground))]">Looking to deploy CareerCompass AI across your entire organization? Let's talk about corporate licenses and custom integration.</p>
          </div>
-         <button className="px-8 py-4 bg-[hsl(var(--foreground))] text-[hsl(var(--background))] rounded-full font-bold">Contact Enterprise Team</button>
+         <a 
+           href="mailto:enterprise@careercompass.ai"
+           className="px-8 py-4 bg-[hsl(var(--foreground))] text-[hsl(var(--background))] rounded-full font-bold hover:scale-105 transition-transform"
+         >
+           Contact Enterprise Team
+         </a>
       </div>
     </div>
   );

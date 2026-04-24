@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Quote, Briefcase, TrendingUp, Star } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function SuccessStories() {
   const stories = [
@@ -79,7 +80,12 @@ export default function SuccessStories() {
           {[1,2,3,4,5].map(s => <Star key={s} fill="currentColor" size={24} />)}
         </div>
         <h2 className="text-3xl font-black mb-10">Average rating 4.9/5 from 2,000+ alumni</h2>
-        <button className="px-10 py-5 bg-indigo-600 text-white rounded-full font-black text-xl shadow-xl shadow-indigo-600/25 hover:scale-105 transition-transform">Read Full Report</button>
+        <Link 
+          to="/signup"
+          className="px-10 py-5 bg-indigo-600 text-white rounded-full font-black text-xl shadow-xl shadow-indigo-600/25 hover:scale-105 transition-transform inline-block"
+        >
+          Read Full Market Report
+        </Link>
       </div>
     </div>
   );
