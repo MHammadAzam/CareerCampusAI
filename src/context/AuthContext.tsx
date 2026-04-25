@@ -9,6 +9,7 @@ interface UserProfile {
   email: string;
   displayName: string;
   photoURL?: string;
+  plan?: 'Basic' | 'Pro' | 'Enterprise';
   createdAt: any;
 }
 
@@ -17,6 +18,8 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  updateProfile: (data: { displayName?: string; photoURL?: string }) => Promise<void>;
+  updateSubscriptionPlan: (plan: 'Basic' | 'Pro' | 'Enterprise') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,8 +67,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await auth.signOut();
   };
 
+  const updateProfile = async (data: { displayName?: string; photoURL?: string }) => {
+    if (!user) throw new Error('No user logged in');
+    
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, { ...data }, { merge: true });
+      
+      // Also update Firebase Auth profile for consistency
+      const { updateProfile: authUpdateProfile } = await import('firebase/auth');
+      await authUpdateProfile(user, data);
+      
+      // Update local profile state
+      setProfile(prev => prev ? { ...prev, ...data } : null);
+    } catch (error) {
+      console.error("Profile update error:", error);
+      throw error;
+    }
+  };
+
+  const updateSubscriptionPlan = async (plan: 'Basic' | 'Pro' | 'Enterprise') => {
+    if (!user) throw new Error('No user logged in');
+    
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, { plan }, { merge: true });
+      setProfile(prev => prev ? { ...prev, plan } : null);
+    } catch (error) {
+      console.error("Subscription update error:", error);
+      throw error;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signOut, updateProfile, updateSubscriptionPlan }}>
       {children}
     </AuthContext.Provider>
   );

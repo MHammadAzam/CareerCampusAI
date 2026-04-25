@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -13,7 +13,9 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
-  Clock
+  Clock,
+  Home,
+  Compass
 } from 'lucide-react';
 import CareerChat from '../components/dashboard/CareerChat';
 import MotivationCard from '../components/dashboard/MotivationCard';
@@ -21,6 +23,7 @@ import DailyCoachCard from '../components/dashboard/DailyCoachCard';
 import { MentorContext } from '../services/mentorService';
 import RoadmapDisplay from '../components/dashboard/RoadmapDisplay';
 import RoadmapInputForm from '../components/dashboard/RoadmapInputForm';
+import ProfileEdit from '../components/dashboard/ProfileEdit';
 import { generateCareerRoadmap, UserInput } from '../services/gemini';
 import { Menu, X, CheckCircle2, RefreshCw, Upload, Play, Check } from 'lucide-react';
 
@@ -38,7 +41,32 @@ export default function Dashboard() {
   const [uploadedResume, setUploadedResume] = React.useState<File | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen">Loading Strategy...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[hsl(var(--background))]">
+      <div className="relative">
+        <div className="absolute inset-0 bg-indigo-600 blur-[40px] opacity-20 animate-pulse" />
+        <div className="relative p-6 bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl">
+          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white animate-[bounce_2s_infinite]">
+            <Compass size={24} />
+          </div>
+        </div>
+      </div>
+      <div className="mt-8 flex flex-col items-center gap-2">
+        <Link to="/" className="text-xl font-black tracking-tighter hover:text-indigo-600 transition-colors">CareerCompass AI</Link>
+        <div className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }}
+              className="w-1.5 h-1.5 rounded-full bg-indigo-600"
+            />
+          ))}
+        </div>
+        <p className="text-[hsl(var(--muted-foreground))] text-[10px] font-bold uppercase tracking-[0.2em] mt-2">Uploading Strategy Vectors</p>
+      </div>
+    </div>
+  );
   if (!user) return <Navigate to="/login" />;
 
   const handleGenerateRoadmap = async (input: UserInput) => {
@@ -77,7 +105,7 @@ export default function Dashboard() {
     { icon: BrainCircuit, label: 'Neural Mapping', id: 'neural-mapping' },
     { icon: FileText, label: 'AI Resume Engine', id: 'resume-engine' },
     { icon: Video, label: 'Interview Simulator', id: 'interview-sim' },
-    { icon: Settings, label: 'Configuration', id: 'config' },
+    { icon: Settings, label: 'Profile & Settings', id: 'config' },
   ];
 
   const navigateTo = (view: DashboardView) => {
@@ -108,14 +136,24 @@ export default function Dashboard() {
         fixed inset-0 z-40 lg:relative lg:z-0 lg:flex w-72 border-r border-[hsl(var(--border))] flex-col bg-zinc-50 dark:bg-zinc-950/50 transition-transform duration-300
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <div className="p-8 border-b border-[hsl(var(--border))]">
+        <Link to="/" className="p-8 border-b border-[hsl(var(--border))] hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors block">
           <div className="flex items-center gap-3 font-black text-xl tracking-tight">
              <div className="p-1.5 bg-indigo-600 rounded-lg text-white"><BrainCircuit size={20} /></div>
              CareerCompass AI
           </div>
-        </div>
+        </Link>
         
         <nav className="flex-1 p-6 space-y-2">
+           <Link 
+             to="/"
+             className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-indigo-600 transition-all mb-4"
+           >
+              <Home size={20} />
+              <span className="font-bold text-sm">Exit to Website</span>
+           </Link>
+
+           <div className="h-px bg-[hsl(var(--border))] mx-4 mb-4" />
+
            <p className="text-[10px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-[0.2em] mb-4 ml-4">Strategic Console</p>
            {sidebarItems.map((item, i) => (
              <button 
@@ -406,24 +444,7 @@ export default function Dashboard() {
 
           {activeView === 'config' && (
             <div className="max-w-6xl mx-auto p-4 md:p-12 animate-in fade-in slide-in-from-right-4 duration-500">
-               <h2 className="text-3xl font-black mb-8">System Configuration</h2>
-               <div className="max-w-xl space-y-8">
-                  <div className="space-y-4">
-                     <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">AI Personality Engine</label>
-                     <select className="w-full p-4 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-2xl font-bold">
-                        <option>Strategic Mentor (Default)</option>
-                        <option>Hard-Truth Scout</option>
-                        <option>Deep-Technical Lead</option>
-                     </select>
-                  </div>
-                  <div className="space-y-4">
-                     <label className="text-xs font-bold uppercase tracking-widest text-zinc-500">Analysis Depth</label>
-                     <div className="grid grid-cols-2 gap-4">
-                        <button className="p-4 border-2 border-indigo-600 bg-indigo-600/10 rounded-2xl font-bold">Standard Neural</button>
-                        <button className="p-4 border border-[hsl(var(--border))] rounded-2xl font-bold opacity-50">Deep Market Sync</button>
-                     </div>
-                  </div>
-               </div>
+               <ProfileEdit />
             </div>
           )}
       </main>
