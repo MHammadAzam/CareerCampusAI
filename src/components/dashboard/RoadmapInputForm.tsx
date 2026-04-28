@@ -12,11 +12,10 @@ export default function RoadmapInputForm({ onSubmit, isLoading }: RoadmapInputFo
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<UserInput>({
     interests: '',
-    skills: '',
-    education: '',
-    goals: '',
-    timeAvailability: '',
-    country: ''
+    skillLevel: 'Beginner',
+    dailyHours: '2',
+    yesterdayProgress: 'Done',
+    mood: ''
   });
 
   const nextStep = () => setStep(s => Math.min(s + 1, 3));
@@ -27,9 +26,9 @@ export default function RoadmapInputForm({ onSubmit, isLoading }: RoadmapInputFo
   };
 
   const isStepValid = () => {
-    if (step === 1) return formData.interests && formData.skills;
-    if (step === 2) return formData.education && formData.goals;
-    if (step === 3) return formData.timeAvailability;
+    if (step === 1) return formData.interests;
+    if (step === 2) return true; // dailyHours and yesterdayProgress have defaults
+    if (step === 3) return true; // mood is optional
     return false;
   };
 
@@ -40,7 +39,7 @@ export default function RoadmapInputForm({ onSubmit, isLoading }: RoadmapInputFo
           <Sparkles size={14} /> Stratagem Initialization
         </div>
         <h2 className="text-3xl font-black mb-4">Neural Mapping Entry</h2>
-        <p className="text-[hsl(var(--muted-foreground))]">Feed the AI your current vectors to calculate the optimal career path.</p>
+        <p className="text-[hsl(var(--muted-foreground))]">Feed the AI your daily vectors to calculate your optimal trajectory.</p>
       </div>
 
       <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-[3rem] p-8 md:p-12 shadow-xl relative overflow-hidden">
@@ -64,7 +63,7 @@ export default function RoadmapInputForm({ onSubmit, isLoading }: RoadmapInputFo
             <div className="space-y-6">
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-                  <BrainCircuit size={14} className="text-indigo-600" /> Professional Interests
+                  <BrainCircuit size={14} className="text-indigo-600" /> Career Interest
                 </label>
                 <textarea
                   name="interests"
@@ -76,15 +75,24 @@ export default function RoadmapInputForm({ onSubmit, isLoading }: RoadmapInputFo
               </div>
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-                  <Target size={14} className="text-indigo-600" /> Current Core Skills
+                  <Target size={14} className="text-indigo-600" /> Skill Level
                 </label>
-                <textarea
-                  name="skills"
-                  placeholder="e.g. React, Node.js, AWS, Kubernetes, Team Leadership..."
-                  className="w-full bg-[hsl(var(--muted))] border border-[hsl(var(--border))] rounded-2xl p-4 min-h-[100px] outline-none focus:ring-2 focus:ring-indigo-600 transition-all"
-                  value={formData.skills}
-                  onChange={handleChange}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  {(['Beginner', 'Intermediate'] as const).map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, skillLevel: level }))}
+                      className={`p-4 rounded-2xl border font-bold transition-all ${
+                        formData.skillLevel === level 
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                        : 'bg-[hsl(var(--muted))] border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:border-indigo-600/50'
+                      }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -93,33 +101,42 @@ export default function RoadmapInputForm({ onSubmit, isLoading }: RoadmapInputFo
             <div className="space-y-6">
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-                  <GraduationCap size={14} className="text-indigo-600" /> Highest Education
+                  <Clock size={14} className="text-indigo-600" /> Daily Available Hours
                 </label>
                 <select
-                  name="education"
+                  name="dailyHours"
                   className="w-full bg-[hsl(var(--muted))] border border-[hsl(var(--border))] rounded-2xl p-4 outline-none focus:ring-2 focus:ring-indigo-600 appearance-none font-bold"
-                  value={formData.education}
+                  value={formData.dailyHours}
                   onChange={handleChange}
                 >
-                  <option value="">Select Level</option>
-                  <option value="Associate">Associate Degree</option>
-                  <option value="Bachelors">Bachelor's Degree</option>
-                  <option value="Masters">Master's Degree</option>
-                  <option value="PhD">PhD / Doctorate</option>
-                  <option value="Self-Taught">Self-Taught / Bootcamp</option>
+                  <option value="1">1 hour</option>
+                  <option value="2">2 hours</option>
+                  <option value="3">3 hours</option>
+                  <option value="4">4 hours</option>
+                  <option value="6">6 hours</option>
+                  <option value="8">Full-Time (8+)</option>
                 </select>
               </div>
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-                  <Sparkles size={14} className="text-indigo-600" /> Ultimate Career Goal
+                  <RefreshCw size={14} className="text-indigo-600" /> Yesterday's Progress
                 </label>
-                <textarea
-                  name="goals"
-                  placeholder="e.g. Become a CTO within 5 years, Land a Staff Engineer role at Google..."
-                  className="w-full bg-[hsl(var(--muted))] border border-[hsl(var(--border))] rounded-2xl p-4 min-h-[100px] outline-none focus:ring-2 focus:ring-indigo-600 transition-all"
-                  value={formData.goals}
-                  onChange={handleChange}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  {(['Done', 'Not Done'] as const).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, yesterdayProgress: status }))}
+                      className={`p-4 rounded-2xl border font-bold transition-all ${
+                        formData.yesterdayProgress === status 
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                        : 'bg-[hsl(var(--muted))] border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:border-indigo-600/50'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -128,33 +145,17 @@ export default function RoadmapInputForm({ onSubmit, isLoading }: RoadmapInputFo
             <div className="space-y-6">
               <div className="space-y-3">
                 <label className="text-xs font-black uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-                  <Clock size={14} className="text-indigo-600" /> Weekly Availability
-                </label>
-                <select
-                  name="timeAvailability"
-                  className="w-full bg-[hsl(var(--muted))] border border-[hsl(var(--border))] rounded-2xl p-4 outline-none focus:ring-2 focus:ring-indigo-600 appearance-none font-bold"
-                  value={formData.timeAvailability}
-                  onChange={handleChange}
-                >
-                  <option value="">Select Hours</option>
-                  <option value="5-10">5-10 hours / week</option>
-                  <option value="10-20">10-20 hours / week</option>
-                  <option value="20-40">20-40 hours / week</option>
-                  <option value="Full-Time">Full-Time Immersion</option>
-                </select>
-              </div>
-              <div className="space-y-3">
-                <label className="text-xs font-black uppercase tracking-widest text-[hsl(var(--muted-foreground))] flex items-center gap-2">
-                  <Globe size={14} className="text-indigo-600" /> Target Country (Optional)
+                  <Sparkles size={14} className="text-indigo-600" /> Current Mood (Optional)
                 </label>
                 <input
                   type="text"
-                  name="country"
-                  placeholder="e.g. USA, Remote, UK..."
+                  name="mood"
+                  placeholder="e.g. Motivated, Tired, Focused, Overwhelmed..."
                   className="w-full bg-[hsl(var(--muted))] border border-[hsl(var(--border))] rounded-2xl p-4 outline-none focus:ring-2 focus:ring-indigo-600 transition-all font-bold"
-                  value={formData.country}
+                  value={formData.mood}
                   onChange={handleChange}
                 />
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium pl-1">The AI will calibrate today's plan difficulty based on your energy levels.</p>
               </div>
             </div>
           )}

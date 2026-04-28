@@ -27,23 +27,23 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
     let inProgressSection = false;
 
     for (const line of lines) {
-      if (line.includes('# 📊 PROGRESS SYSTEM') || line.includes('# 🌿 BRANCHES') || line.includes('# BRANCHES')) {
+      if (line.includes('# 📊 PROGRESS SYSTEM')) {
         inProgressSection = true;
         continue;
       }
-      if (inProgressSection && (line.startsWith('#') || line.startsWith('🍃'))) break;
+      if (inProgressSection && line.startsWith('#')) break;
       
       if (inProgressSection && line.includes(':')) {
-        const percentMatch = line.match(/-\s*(.*?):\s*(\d+)%/);
-        if (percentMatch) {
-          progress.push({ name: percentMatch[1], value: parseInt(percentMatch[2]) });
-        } else {
-          const levelMatch = line.match(/-\s*(.*?)\s*\(Level:\s*(.*?)\)/);
-          if (levelMatch) {
-            const level = levelMatch[2].toLowerCase();
-            const value = level.includes('advanced') ? 90 : level.includes('intermediate') ? 60 : 30;
-            progress.push({ name: levelMatch[1], value });
-          }
+        const parts = line.split(':');
+        const name = parts[0].replace('-', '').trim();
+        const valueStr = parts[1].trim();
+        
+        // Try to handle XP or Level strings
+        if (name.toLowerCase().includes('xp')) {
+           progress.push({ name: 'Daily XP', value: 75 }); // Mock visualization
+        } else if (name.toLowerCase().includes('level')) {
+           const level = parseInt(valueStr) || 1;
+           progress.push({ name: 'Career Level', value: level * 10 });
         }
       }
     }
@@ -54,30 +54,27 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
     const data = {
       level: '1',
       xp: '0',
-      nextMilestone: 'Complete first project',
-      badges: [] as string[],
-      status: '🌱 Seed'
+      streak: '1',
+      mission: 'Initializing...',
+      status: '🚀 Active'
     };
 
     const lines = text.split('\n');
-    let inSection = false;
-
+    
     for (const line of lines) {
-      if (line.includes('# 🎮 GAMIFICATION STATUS') || line.includes('# GAMIFICATION STATUS')) {
-        inSection = true;
-        continue;
-      }
-      if (inSection && line.startsWith('#')) break;
-
-      if (inSection) {
-        if (line.includes('Current Level:')) data.level = line.split(':')[1].trim().replace('[', '').replace(']', '');
-        if (line.includes('XP Points:')) data.xp = line.split(':')[1].trim().replace('[', '').replace(']', '');
-        if (line.includes('Next Milestone:')) data.nextMilestone = line.split(':')[1].trim();
-        if (line.includes('Badge Suggestions:')) {
-          const badgesText = line.split(':')[1].trim().replace('[', '').replace(']', '');
-          data.badges = badgesText.split(',').map(b => b.trim());
+      if (line.includes('Current Level:')) data.level = line.split(':')[1].trim().replace(/\D/g, '').split(' ')[0];
+      if (line.includes('XP Earned Today:')) data.xp = line.split(':')[1].trim().replace(/\D/g, '').split(' ')[0];
+      if (line.includes('Streak Count:')) data.streak = line.split(':')[1].trim().replace(/\D/g, '').split(' ')[0];
+      if (line.includes('🔥 TODAY’S MAIN MISSION')) {
+        const index = lines.indexOf(line);
+        // Look ahead for the mission line that isn't the subtitle or empty
+        for (let i = index + 1; i < index + 5 && i < lines.length; i++) {
+          const nextLine = lines[i].trim();
+          if (nextLine && !nextLine.includes('MUST complete today')) {
+            data.mission = nextLine.replace(/^👉\s*|-\s*/, '');
+            break;
+          }
         }
-        if (line.includes('Progress Status:')) data.status = line.split(':')[1].trim().replace('[', '').replace(']', '');
       }
     }
     return data;
@@ -355,67 +352,72 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
           {/* Sidebar / Quick Stats */}
           <div className="lg:col-span-4 space-y-8 print:hidden">
           {/* Gamification Card */}
-          <div className="bg-gradient-to-br from-purple-600 to-blue-700 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl group-hover:scale-150 transition-transform duration-1000" />
             
             <div className="flex justify-between items-start mb-10">
               <div>
-                <h3 className="text-xs font-mono uppercase tracking-widest text-white/60 mb-2">Current Level</h3>
+                <h3 className="text-xs font-mono uppercase tracking-widest text-white/60 mb-2">Growth Level</h3>
                 <div className="text-6xl font-black leading-none">{gamification.level}</div>
               </div>
               <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10">
-                <Trophy size={24} />
+                <Zap size={24} className="text-amber-300" />
               </div>
             </div>
 
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between text-[10px] uppercase tracking-widest text-white/60 mb-2">
-                  <span>Experience Points</span>
+                  <span>Daily Action XP</span>
                   <span>{gamification.xp} XP</span>
                 </div>
                 <div className="h-2 w-full bg-black/20 rounded-full overflow-hidden border border-white/5">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: '65%' }}
+                    animate={{ width: `${Math.min(100, parseInt(gamification.xp) || 50)}%` }}
                     className="h-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]"
                     transition={{ duration: 1.5, ease: "easeOut" }}
                   />
                 </div>
               </div>
 
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-white/60 mb-3">Unlocked Badges</div>
-                <div className="flex flex-wrap gap-2">
-                  {gamification.badges.map((badge, i) => (
-                    <div key={i} className="px-3 py-1.5 bg-white/10 rounded-xl text-[10px] font-bold border border-white/10 flex items-center gap-1.5">
-                      <Star size={10} fill="currentColor" />
-                      {badge}
-                    </div>
-                  ))}
+              <div className="pt-4 border-t border-white/10">
+                <div className="flex items-center gap-3">
+                   <div className="p-3 bg-white/10 rounded-xl border border-white/10">
+                     <Star size={18} className="text-amber-400" fill="currentColor" />
+                   </div>
+                   <div>
+                     <p className="text-[10px] uppercase tracking-widest text-white/60">Current Streak</p>
+                     <p className="text-lg font-black">{gamification.streak} Days</p>
+                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Progress Card */}
+          {/* Today's Focus Card */}
           <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-[2.5rem] p-8 shadow-xl">
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500">Skill Strength</h3>
-              <Zap size={18} className="text-amber-400" />
+              <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500">Core Mission</h3>
+              <Target size={18} className="text-indigo-600" />
             </div>
-            <div className="space-y-6">
+            <div className="p-6 bg-indigo-600/5 rounded-3xl border border-indigo-600/10 mb-6">
+              <p className="text-sm font-black text-indigo-600 leading-relaxed italic">
+                "{gamification.mission}"
+              </p>
+            </div>
+            <div className="space-y-4">
               {progressData.map((skill) => (
                 <div key={skill.name}>
-                  <div className="flex justify-between text-sm mb-2">
+                  <div className="flex justify-between text-xs mb-2">
                     <span className="text-[var(--text-app)] font-bold">{skill.name}</span>
                     <span className="text-zinc-500 font-mono">{skill.value}%</span>
                   </div>
-                  <div className="h-2 w-full bg-[var(--bg-app)] rounded-full overflow-hidden border border-[var(--card-border)]">
+                  <div className="h-1.5 w-full bg-[var(--bg-app)] rounded-full overflow-hidden border border-[var(--card-border)]">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${skill.value}%` }}
-                      className="h-full bg-gradient-to-r from-purple-500 to-blue-500"
+                      className="h-full bg-indigo-600"
                       transition={{ duration: 1, delay: 0.5 }}
                     />
                   </div>
@@ -443,11 +445,6 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
 
         {/* Main Content Area */}
         <div className="lg:col-span-8 space-y-10">
-          {/* Career Tree Visualization */}
-          <div className="print:hidden">
-            <CareerTree nodes={[...treeNodes]} edges={[...treeEdges]} />
-          </div>
-
           {/* Roadmap Content */}
           <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-[3rem] p-8 md:p-16 shadow-2xl roadmap-content relative overflow-hidden transition-colors">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-emerald-500" />

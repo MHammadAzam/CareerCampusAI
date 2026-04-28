@@ -45,14 +45,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               uid: user.uid,
               email: user.email!,
               displayName: user.displayName || 'Strategic User',
-              photoURL: user.photoURL || undefined,
+              photoURL: user.photoURL || null,
               createdAt: serverTimestamp(),
             };
-            await setDoc(userDocRef, newProfile);
-            setProfile(newProfile as any);
+            try {
+              await setDoc(userDocRef, newProfile);
+              setProfile(newProfile as any);
+            } catch (createError) {
+              handleFirestoreError(createError, 'create' as any, `users/${user.uid}`);
+            }
           }
         } catch (error) {
-          console.error("Auth profile fetch error:", error);
+          console.error("Auth profile fetch error:");
+          handleFirestoreError(error, 'get' as any, `users/${user.uid}`);
         }
       } else {
         setProfile(null);

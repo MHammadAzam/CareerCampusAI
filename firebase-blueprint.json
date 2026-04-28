@@ -29,7 +29,7 @@
         },
         "plan": {
           "type": "string",
-          "enum": ["starter", "pro", "executive"],
+          "enum": ["Basic", "Pro", "Enterprise"],
           "description": "User's subscription plan"
         }
       },

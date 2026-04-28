@@ -1,14 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny
+    // 0. Default deny
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Global Helpers
+    // Phase 3: Primitives & Global Helpers
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email_verified == true;
     }
 
     function isOwner(userId) {
@@ -19,49 +19,73 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // User Profile Validation
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Phase 4: Entity Validations
+    
+    // User Blueprint
     function isValidUser(data) {
       let requiredFields = ['uid', 'displayName', 'email', 'createdAt'];
       let allowedFields = ['uid', 'displayName', 'email', 'createdAt', 'photoURL', 'plan'];
       
       return data.keys().hasAll(requiredFields) &&
-             data.keys().hasOnly(allowedFields) &&
+             data.keys().size() <= allowedFields.size() &&
              data.uid == request.auth.uid &&
-             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
-             data.email is string && data.email.size() > 0 && data.email.size() < 128 &&
-             data.email == request.auth.token.email &&
-             (data.get('photoURL', null) == null || (data.photoURL is string && data.photoURL.size() < 1000)) &&
-             (data.get('plan', null) == null || data.plan in ['starter', 'pro', 'executive']);
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100 &&
+             data.email is string && data.email == request.auth.token.email &&
+             (data.get('photoURL', null) == null || (data.photoURL is string && data.photoURL.size() <= 2048)) &&
+             (data.get('plan', null) == null || data.plan in ['Basic', 'Pro', 'Enterprise']);
     }
 
     match /users/{userId} {
       allow get: if isOwner(userId);
+      // No blanket listing of users
+      allow list: if false;
+
       allow create: if isOwner(userId) && 
-                      isValidUser(request.resource.data) && 
-                      request.resource.data.createdAt == request.time;
+                      isValidId(userId) &&
+                      isValidUser(incoming()) && 
+                      incoming().createdAt == request.time;
+                      
       allow update: if isOwner(userId) && 
-                      isValidUser(request.resource.data) &&
-                      request.resource.data.createdAt == resource.data.createdAt &&
-                      request.resource.data.email == resource.data.email &&
-                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'plan']);
-      
-      // Roadmaps subcollection
+                      isValidUser(incoming()) &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().email == existing().email &&
+                      incoming().uid == existing().uid &&
+                      (
+                        // Action: Profile Update
+                        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'plan'])
+                      );
+
+      // Roadmaps subcollection - Master Gate Pattern
       match /roadmaps/{roadmapId} {
         function isValidRoadmap(data) {
-          let required = ['userId', 'input', 'content', 'date'];
-          return data.keys().hasAll(required) &&
+          return data.keys().hasAll(['userId', 'input', 'content', 'date']) &&
                  data.userId == userId &&
                  data.userId == request.auth.uid &&
-                 data.content is string && data.content.size() > 0 && data.content.size() < 50000;
+                 data.content is string && data.content.size() > 0 && data.content.size() <= 100000;
         }
 
-        allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidRoadmap(request.resource.data) && request.resource.data.date == request.time;
+        allow get: if isOwner(userId);
+        // List restricted to the owner's subcollection
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) && 
+                        isValidId(roadmapId) &&
+                        isValidRoadmap(incoming()) && 
+                        incoming().date == request.time;
+                        
         allow delete: if isOwner(userId);
       }
     }
 
-    // Chat Feedback
+    // Chat Feedback - Interaction Collection
     match /chat_feedback/{feedbackId} {
       function isValidFeedback(data) {
         return data.keys().hasAll(['userId', 'messageId', 'feedback', 'timestamp']) &&
@@ -70,8 +94,8 @@ service cloud.firestore {
                data.timestamp == request.time;
       }
 
-      allow create: if isSignedIn() && isValidFeedback(request.resource.data);
-      // No one can read feedback from the client for now (admin only via console)
+      allow create: if isSignedIn() && isValidId(feedbackId) && isValidFeedback(incoming());
+      // Client cannot read other people's feedback
       allow read: if false; 
     }
   }

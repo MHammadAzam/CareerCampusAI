@@ -24,8 +24,10 @@ import { MentorContext } from '../services/mentorService';
 import RoadmapDisplay from '../components/dashboard/RoadmapDisplay';
 import RoadmapInputForm from '../components/dashboard/RoadmapInputForm';
 import ProfileEdit from '../components/dashboard/ProfileEdit';
-import { generateCareerRoadmap, UserInput } from '../services/gemini';
-import { Menu, X, CheckCircle2, RefreshCw, Upload, Play, Check } from 'lucide-react';
+import InterviewSimulator from '../components/dashboard/InterviewSimulator';
+import { generateCareerRoadmap, UserInput, analyzeResume, ResumeAnalysis } from '../services/gemini';
+import { extractTextFromFile } from '../services/fileParser';
+import { Menu, X, CheckCircle2, RefreshCw, Upload, Play, Check, AlertCircle, Award, Trash2 } from 'lucide-react';
 
 type DashboardView = 'overview' | 'neural-mapping' | 'resume-engine' | 'interview-sim' | 'config';
 
@@ -39,6 +41,9 @@ export default function Dashboard() {
   const [isSimulating, setIsSimulating] = React.useState(false);
   const [activeSimulation, setActiveSimulation] = React.useState<string | null>(null);
   const [uploadedResume, setUploadedResume] = React.useState<File | null>(null);
+  const [resumeAnalysis, setResumeAnalysis] = React.useState<ResumeAnalysis | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
+  const [analysisError, setAnalysisError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   if (loading) return (
@@ -94,9 +99,38 @@ export default function Dashboard() {
     setIsSimulating(true);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setUploadedResume(e.target.files[0]);
+  const handleRemoveResume = () => {
+    setUploadedResume(null);
+    setResumeAnalysis(null);
+    setAnalysisError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadedResume(file);
+      setIsAnalyzing(true);
+      setResumeAnalysis(null);
+      setAnalysisError(null);
+      console.log("Starting resume extraction for:", file.name);
+      try {
+        const text = await extractTextFromFile(file);
+        console.log("Text extracted, length:", text.length);
+        if (text.trim().length === 0) {
+          throw new Error("Could not extract any text from the document. Please try a different file.");
+        }
+        const analysis = await analyzeResume(text);
+        console.log("Analysis received:", analysis);
+        setResumeAnalysis(analysis);
+      } catch (error: any) {
+        console.error("Resume analysis error:", error);
+        setAnalysisError(error.message || "Failed to analyze resume. Please ensure it's a valid PDF or TXT file.");
+      } finally {
+        setIsAnalyzing(false);
+      }
     }
   };
 
@@ -338,50 +372,143 @@ export default function Dashboard() {
           {activeView === 'resume-engine' && (
             <div className="max-w-6xl mx-auto p-4 md:p-12 animate-in fade-in slide-in-from-right-4 duration-500">
                <h2 className="text-3xl font-black mb-8">AI Resume Engineering</h2>
-               <div className="grid md:grid-cols-2 gap-8">
-                  <div className="p-12 bg-[hsl(var(--card))] border border-dashed border-[hsl(var(--border))] rounded-[3rem] flex flex-col items-center justify-center text-center group cursor-pointer hover:border-indigo-600/50 transition-all">
+               <div className="grid lg:grid-cols-2 gap-8">
+                  <div className={`p-12 bg-[hsl(var(--card))] border-2 border-dashed rounded-[3rem] flex flex-col items-center justify-center text-center group cursor-pointer transition-all ${uploadedResume ? 'border-indigo-600/20' : 'border-[hsl(var(--border))] hover:border-indigo-600/50'}`}>
                      <input 
                        type="file" 
                        ref={fileInputRef} 
                        onChange={handleFileUpload} 
                        className="hidden" 
-                       accept=".pdf,.doc,.docx"
+                       accept=".pdf,.txt"
                      />
-                     <FileText size={48} className={`mb-6 transition-colors ${uploadedResume ? 'text-emerald-500' : 'text-zinc-300 group-hover:text-indigo-400'}`} />
+                     <div className="relative mb-6">
+                        {isAnalyzing && (
+                          <div className="absolute inset-0 bg-[hsl(var(--card))] rounded-full flex items-center justify-center z-10">
+                            <RefreshCw className="animate-spin text-indigo-600" size={32} />
+                          </div>
+                        )}
+                        <div className={`p-6 rounded-[2rem] transition-colors ${uploadedResume ? 'bg-indigo-600/10 text-indigo-600' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 group-hover:text-indigo-600'}`}>
+                          <FileText size={48} />
+                        </div>
+                     </div>
+                     
                      {uploadedResume ? (
-                        <div>
-                          <p className="text-emerald-500 font-bold mb-2">Analysis Complete</p>
-                          <p className="text-zinc-500 text-sm mb-8">{uploadedResume.name}</p>
-                          <button 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="text-xs font-bold text-indigo-600 hover:underline"
-                          >
-                            Replace Document
-                          </button>
+                        <div className="w-full">
+                          <p className="font-black text-xl mb-1">{uploadedResume.name}</p>
+                          <p className="text-zinc-500 text-sm mb-8">{(uploadedResume.size / 1024).toFixed(1)} KB • Document Vectorized</p>
+                          
+                          {resumeAnalysis && (
+                            <div className="mb-8 p-6 bg-zinc-50 dark:bg-zinc-900 rounded-3xl border border-[hsl(var(--border))]">
+                              <div className="flex items-center justify-between mb-4">
+                                <span className="text-sm font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))]">ATS Strategic Rating</span>
+                                <span className={`text-4xl font-black ${
+                                  resumeAnalysis.rating >= 85 ? 'text-emerald-500' : 
+                                  resumeAnalysis.rating >= 80 ? 'text-orange-500' : 'text-red-500'
+                                }`}>
+                                  {resumeAnalysis.rating}%
+                                </span>
+                              </div>
+                              <div className="h-4 bg-[hsl(var(--border))] rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-1000 ${
+                                    resumeAnalysis.rating >= 85 ? 'bg-emerald-500' : 
+                                    resumeAnalysis.rating >= 80 ? 'bg-orange-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${resumeAnalysis.rating}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex flex-col gap-3">
+                            <button 
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isAnalyzing}
+                              className="px-8 py-3 bg-[hsl(var(--muted))] text-[hsl(var(--foreground))] rounded-xl font-bold flex items-center justify-center gap-2 w-full hover:bg-[hsl(var(--border))] transition-all disabled:opacity-50"
+                            >
+                              <RefreshCw size={18} /> Replace Document
+                            </button>
+                            <button 
+                              onClick={handleRemoveResume}
+                              disabled={isAnalyzing}
+                              className="px-8 py-3 bg-red-500/10 text-red-500 rounded-xl font-bold flex items-center justify-center gap-2 w-full hover:bg-red-500/20 transition-all disabled:opacity-50"
+                            >
+                              <Trash2 size={18} /> Remove Document
+                            </button>
+                          </div>
+
+                          {analysisError && (
+                            <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-sm flex items-center gap-2">
+                              <AlertCircle size={16} /> {analysisError}
+                            </div>
+                          )}
                         </div>
                      ) : (
                         <>
-                          <p className="text-zinc-500 mb-8 max-w-xs">Drop your existing resume here or click to upload for comprehensive narrative analysis.</p>
+                          <p className="text-zinc-500 mb-8 max-w-xs font-medium">Drop your existing resume here or click to upload for deep neural narrative analysis and ATS scoring.</p>
                           <button 
                             onClick={() => fileInputRef.current?.click()}
-                            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-2"
+                            className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all flex items-center gap-2 active:scale-95"
                           >
-                            <Upload size={18} /> Upload Source Document
+                            <Upload size={20} /> Upload Strategy Source
                           </button>
                         </>
                      )}
                   </div>
+
                   <div className="space-y-6">
-                     <div className="p-8 bg-zinc-950 text-white rounded-[2.5rem]">
-                        <h3 className="font-bold mb-4">Active Narrative Interventions</h3>
-                        <div className="space-y-4">
-                           {['Shift focus from "Lead" to "Strategic Partner"', 'Emphasize architectural trade-off reasoning', 'Quantify outcome with business terminology'].map(t => (
-                              <div key={t} className="flex items-center gap-3 text-sm text-zinc-400">
-                                 <CheckCircle2 size={16} className="text-emerald-500" /> {t}
-                              </div>
-                           ))}
+                    {resumeAnalysis ? (
+                      <>
+                        {resumeAnalysis.suggestions.length > 0 && (
+                          <div className="p-8 bg-zinc-950 text-white rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+                             <div className="absolute top-0 right-0 w-32 h-32 bg-orange-600/20 blur-[60px] rounded-full" />
+                             <h3 className="font-black text-xl mb-6 flex items-center gap-2">
+                               <AlertCircle size={24} className="text-orange-500" /> Strategic Interventions
+                             </h3>
+                             <div className="space-y-4 relative z-10">
+                                {resumeAnalysis.suggestions.map((s, i) => (
+                                   <div key={i} className="flex items-start gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+                                      <div className="mt-1 w-2 h-2 rounded-full bg-orange-600 shrink-0" />
+                                      <span className="text-zinc-400 text-sm leading-relaxed">{s}</span>
+                                   </div>
+                                ))}
+                             </div>
+                          </div>
+                        )}
+
+                        <div className="p-8 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-[2.5rem]">
+                           <h3 className="font-black text-xl mb-6 flex items-center gap-2">
+                             <Award size={24} className="text-emerald-500" /> Strength Vectors
+                           </h3>
+                           <div className="space-y-4">
+                              {resumeAnalysis.strengths.map((s, i) => (
+                                 <div key={i} className="flex items-center gap-4 text-sm text-[hsl(var(--muted-foreground))]">
+                                    <CheckCircle2 size={18} className="text-emerald-500 shrink-0" /> 
+                                    <span className="font-medium">{s}</span>
+                                 </div>
+                              ))}
+                           </div>
+                           <div className="mt-8 pt-8 border-t border-[hsl(var(--border))]">
+                             <p className="text-xs font-bold uppercase tracking-widest text-[hsl(var(--muted-foreground))] mb-2 opacity-50">Intelligence Summary</p>
+                             <p className="text-sm italic text-[hsl(var(--muted-foreground))] leading-relaxed">
+                               "{resumeAnalysis.summary}"
+                             </p>
+                           </div>
                         </div>
-                     </div>
+                      </>
+                    ) : isAnalyzing ? (
+                       <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-[hsl(var(--muted))] rounded-[2.5rem] animate-pulse">
+                          <RefreshCw className="animate-spin text-indigo-600 mb-6" size={48} />
+                          <h3 className="text-xl font-black mb-2">Neural Scan in Progress</h3>
+                          <p className="text-zinc-500 max-w-xs">Our strategist AI is currently deconstructing your resume narrative for optimal ATS penetration.</p>
+                       </div>
+                    ) : (
+                      <div className="h-full p-12 flex flex-col items-center justify-center text-center bg-zinc-100 dark:bg-zinc-800/50 rounded-[2.5rem] border border-[hsl(var(--border))]">
+                        <Sparkles size={48} className="text-zinc-300 mb-6" />
+                        <h3 className="text-xl font-black mb-2 text-zinc-400">Analysis Pending</h3>
+                        <p className="text-zinc-500 max-w-xs text-sm">Upload your resume to initialize the Strategic Engineering console.</p>
+                      </div>
+                    )}
                   </div>
                </div>
             </div>
@@ -390,38 +517,16 @@ export default function Dashboard() {
           {activeView === 'interview-sim' && (
             <div className="max-w-6xl mx-auto p-4 md:p-12 animate-in fade-in slide-in-from-right-4 duration-500">
                <h2 className="text-3xl font-black mb-8">Neural Interview Simulation</h2>
-               {activeSimulation ? (
-                  <div className="p-12 bg-zinc-950 text-white rounded-[3rem] border border-white/5 relative overflow-hidden">
-                     <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/20 blur-[100px] rounded-full" />
-                     <div className="relative z-10 flex flex-col items-center text-center">
-                        <div className="w-20 h-20 bg-indigo-600 rounded-full flex items-center justify-center animate-pulse mb-8">
-                           <Video size={40} />
-                        </div>
-                        <h3 className="text-2xl font-black mb-2">Protocol: {activeSimulation}</h3>
-                        <p className="text-indigo-400 font-bold text-xs uppercase tracking-widest mb-8">System Initializing neural link...</p>
-                        <div className="space-y-4 mb-10 w-full max-w-md text-left">
-                           {['Establishing environment...', 'Loading cultural markers...', 'Calibrating bias detection...'].map((t, i) => (
-                              <motion.div 
-                                key={i}
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.5 }}
-                                className="flex items-center gap-3 text-zinc-500 text-sm"
-                              >
-                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" /> {t}
-                              </motion.div>
-                           ))}
-                        </div>
-                        <button 
-                          onClick={() => setActiveSimulation(null)}
-                          className="px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold shadow-xl active:scale-95"
-                        >
-                          Terminate Protocol
-                        </button>
-                     </div>
-                  </div>
-               ) : (
-                  <div className="grid md:grid-cols-3 gap-6">
+               {isSimulating && activeSimulation && (
+                  <InterviewSimulator 
+                    type={activeSimulation}
+                    onClose={() => {
+                      setIsSimulating(false);
+                      setActiveSimulation(null);
+                    }}
+                  />
+               )}
+               <div className="grid md:grid-cols-3 gap-6">
                      {['Technical High-Concurrency', 'System Design: Tier-1', 'Behavioral: Leadership'].map((s, i) => (
                        <div key={i} className="p-8 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-3xl group cursor-pointer hover:border-indigo-600 transition-all">
                           <div className="w-12 h-12 bg-[hsl(var(--muted))] rounded-xl flex items-center justify-center mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
@@ -438,7 +543,6 @@ export default function Dashboard() {
                        </div>
                      ))}
                   </div>
-               )}
             </div>
           )}
 
