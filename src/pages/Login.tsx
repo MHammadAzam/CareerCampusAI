@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase/config';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { Compass, Mail, Lock, ArrowRight, Github } from 'lucide-react';
 
 export default function Login() {
@@ -18,7 +19,11 @@ export default function Login() {
       await signInWithPopup(auth, provider);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError(`Login method not enabled in project [${firebaseConfig.projectId}]. Please enable it in Firebase Console.`);
+      } else {
+        setError(`${err.code}: ${err.message}`);
+      }
     }
   };
 
@@ -30,7 +35,11 @@ export default function Login() {
       await signInWithEmailAndPassword(auth, email, password);
       navigate('/dashboard');
     } catch (err: any) {
-      setError('Invalid identity credentials.');
+      if (err.code === 'auth/operation-not-allowed') {
+        setError(`Email/Password login is not enabled in project [${firebaseConfig.projectId}].`);
+      } else {
+        setError('Invalid identity credentials.');
+      }
     } finally {
       setLoading(false);
     }

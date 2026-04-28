@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { Compass, Mail, Lock, User, ArrowRight, Sparkles } from 'lucide-react';
 
 export default function Signup() {
@@ -29,12 +30,16 @@ export default function Signup() {
         email: user.email,
         displayName: name,
         createdAt: serverTimestamp(),
-        plan: 'starter'
+        plan: 'Basic'
       });
       
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError(`Email/Password registration is not enabled in project [${firebaseConfig.projectId}].`);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -46,7 +51,11 @@ export default function Signup() {
       await signInWithPopup(auth, provider);
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError(`Google login is not enabled in project [${firebaseConfig.projectId}].`);
+      } else {
+        setError(err.message);
+      }
     }
   };
 

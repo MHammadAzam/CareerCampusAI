@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0498657583",
-  "appId": "1:978442636294:web:94f6cfbf008d32ddfbc787",
-  "apiKey": "AIzaSyDYWpXvdUkTD2_yhLsU3wjxm6lNkslaM0I",
-  "authDomain": "gen-lang-client-0498657583.firebaseapp.com",
+  "projectId": "careercampus-ai",
+  "appId": "1:1010599639435:web:6afc1cbcb2da9ee64e978e",
+  "apiKey": "AIzaSyBGAghuRLFkYg225VyOsXMmUKjT3Z_YKG4",
+  "authDomain": "careercampus-ai.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-0b7536f9-a0fd-4573-8c02-e84ee3100f3e",
-  "storageBucket": "gen-lang-client-0498657583.firebasestorage.app",
-  "messagingSenderId": "978442636294",
+  "storageBucket": "careercampus-ai.firebasestorage.app",
+  "messagingSenderId": "1010599639435",
   "measurementId": ""
 }

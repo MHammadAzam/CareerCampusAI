@@ -56,6 +56,7 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
       xp: '0',
       streak: '1',
       mission: 'Initializing...',
+      nextMilestone: 'Complete first project',
       status: '🚀 Active'
     };
 
