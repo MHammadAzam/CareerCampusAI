@@ -24,30 +24,40 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
   const extractProgress = (text: string) => {
     const lines = text.split('\n');
     const progress: { name: string; value: number }[] = [];
-    let inProgressSection = false;
-
+    
     for (const line of lines) {
-      if (line.includes('# 📊 PROGRESS SYSTEM')) {
-        inProgressSection = true;
-        continue;
+      if (line.includes('Progress:')) {
+        const match = line.match(/(\d+)%/);
+        if (match) progress.push({ name: 'Roadmap Progress', value: parseInt(match[1]) });
       }
-      if (inProgressSection && line.startsWith('#')) break;
-      
-      if (inProgressSection && line.includes(':')) {
-        const parts = line.split(':');
-        const name = parts[0].replace('-', '').trim();
-        const valueStr = parts[1].trim();
-        
-        // Try to handle XP or Level strings
-        if (name.toLowerCase().includes('xp')) {
-           progress.push({ name: 'Daily XP', value: 75 }); // Mock visualization
-        } else if (name.toLowerCase().includes('level')) {
-           const level = parseInt(valueStr) || 1;
-           progress.push({ name: 'Career Level', value: level * 10 });
+      if (line.includes('Level:')) {
+        const match = line.match(/Level:\s*(\d+)/);
+        if (match) progress.push({ name: 'Career Tier', value: parseInt(match[1]) * 10 });
+      }
+      if (line.includes('XP:')) {
+        const match = line.match(/XP:\s*(\d+)\s*\/\s*(\d+)/);
+        if (match) {
+          const current = parseInt(match[1]);
+          const total = parseInt(match[2]);
+          progress.push({ name: 'XP Progress', value: Math.round((current / total) * 100) });
         }
       }
     }
-    return progress;
+    
+    // If we couldn't find structured data, try to find skills from the tree
+    if (progress.length === 0) {
+      let inTree = false;
+      for (const line of lines) {
+        if (line.includes('🌳 CAREER TREE:')) { inTree = true; continue; }
+        if (inTree && line.includes('├──')) {
+           const skill = line.split('├──')[1].trim();
+           progress.push({ name: skill, value: 45 }); // Initial mapping
+        }
+        if (inTree && line.includes('└──')) break;
+      }
+    }
+
+    return progress.length > 0 ? progress : [{ name: 'Growth', value: 0 }];
   };
 
   const extractGamification = (text: string) => {
@@ -55,23 +65,35 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
       level: '1',
       xp: '0',
       streak: '1',
-      mission: 'Initializing...',
-      nextMilestone: 'Complete first project',
+      mission: 'Goal: Professional Excellence',
+      nextMilestone: 'Build Portfolio',
       status: '🚀 Active'
     };
 
     const lines = text.split('\n');
     
     for (const line of lines) {
-      if (line.includes('Current Level:')) data.level = line.split(':')[1].trim().replace(/\D/g, '').split(' ')[0];
-      if (line.includes('XP Earned Today:')) data.xp = line.split(':')[1].trim().replace(/\D/g, '').split(' ')[0];
-      if (line.includes('Streak Count:')) data.streak = line.split(':')[1].trim().replace(/\D/g, '').split(' ')[0];
-      if (line.includes('🔥 TODAY’S MAIN MISSION')) {
+      if (line.includes('🎯 YOUR DIRECTION:')) {
         const index = lines.indexOf(line);
-        // Look ahead for the mission line that isn't the subtitle or empty
+        if (lines[index + 1]) data.status = lines[index + 1].trim();
+      }
+      if (line.includes('Level:')) {
+        const match = line.match(/Level:\s*(\d+)/);
+        if (match) data.level = match[1];
+      }
+      if (line.includes('XP:')) {
+        const match = line.match(/XP:\s*(\d+)/);
+        if (match) data.xp = match[1];
+      }
+      if (line.includes('Streak:')) {
+        const match = line.match(/Streak:\s*(\d+)/);
+        if (match) data.streak = match[1];
+      }
+      if (line.includes('🔥 MAIN MISSION:')) {
+        const index = lines.indexOf(line);
         for (let i = index + 1; i < index + 5 && i < lines.length; i++) {
           const nextLine = lines[i].trim();
-          if (nextLine && !nextLine.includes('MUST complete today')) {
+          if (nextLine && !nextLine.includes('MISSION')) {
             data.mission = nextLine.replace(/^👉\s*|-\s*/, '');
             break;
           }
@@ -459,10 +481,16 @@ export default function RoadmapDisplay({ content, onReset, onSave }: RoadmapDisp
                 ),
                 p: ({ node, ...props }) => {
                   const text = props.children?.toString() || '';
-                  if (text.startsWith('🌱') || text.startsWith('🌳') || text.startsWith('🌿') || text.startsWith('🍃') || text.startsWith('🍎')) {
+                  const headers = ['🎯', '🌳', '📅', '🔥', '📊', '💰', '📈', '💬', '🎮', '⏱', '────────────────────────────'];
+                  const isHeader = headers.some(h => text.includes(h));
+                  
+                  if (isHeader) {
+                    if (text.includes('──')) {
+                      return <div className="h-px bg-gradient-to-r from-transparent via-[var(--card-border)] to-transparent my-10" />;
+                    }
                     return (
-                      <div className="p-6 bg-[var(--bg-app)] rounded-3xl mb-6 border border-[var(--card-border)]">
-                        <p className="text-[var(--text-app)] font-bold m-0 text-lg" {...props} />
+                      <div className="mt-12 mb-6">
+                        <p className="text-xl font-black text-[var(--text-app)] flex items-center gap-3 tracking-tight" {...props} />
                       </div>
                     );
                   }
